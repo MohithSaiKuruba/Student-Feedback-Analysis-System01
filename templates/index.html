@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Student Feedback Analysis System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-mark">S</span><span>Campus<span class="brand-muted">Pulse</span></span></a>
+    <div class="nav-label">WORKSPACE</div>
+    <a class="nav-item active" href="#overview"><span>▦</span> Overview</a>
+    <a class="nav-item" href="#give-feedback"><span>✎</span> Give feedback</a>
+    <a class="nav-item" href="#insights"><span>◷</span> Analytics</a>
+    <div class="sidebar-bottom"><div class="privacy-icon">✓</div><strong>Privacy first</strong><p>Only aggregated insights are shown. Individual responses stay private.</p><span class="status-pill">● Anonymous by design</span></div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div><div class="eyebrow">STUDENT EXPERIENCE / ANALYTICS</div><h1>Feedback overview</h1></div><a class="export-btn" href="{{ url_for('export_summary') }}">↓ <span>Export report</span></a></header>
+    {% if db_unavailable %}<div class="alert error">Could not connect to MySQL. Check your .env settings and run database/schema.sql.</div>{% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}<div class="alert {{ category }}">{{ message }}</div>{% endfor %}{% endif %}{% endwith %}
+    <section id="overview" class="stats-grid">
+      <article class="stat-card"><div class="stat-head"><span>Total ratings</span><span class="stat-icon violet">▤</span></div><div class="stat-value">{{ summary.total_responses }}</div><div class="stat-foot">Individual question ratings recorded</div></article>
+      <article class="stat-card"><div class="stat-head"><span>Overall average</span><span class="stat-icon mint">★</span></div><div class="stat-value">{% if summary.overall is not none %}{{ '%.2f'|format(summary.overall) }}<small>/ 5</small>{% else %}<span class="muted-value">—</span>{% endif %}</div><div class="stat-foot">Hidden when fewer than {{ config.MIN_GROUP_SIZE }} ratings</div></article>
+      <article class="stat-card"><div class="stat-head"><span>Courses</span><span class="stat-icon amber">▣</span></div><div class="stat-value">{{ courses|length }}</div><div class="stat-foot">Courses in the feedback catalog</div></article>
+      <article class="stat-card"><div class="stat-head"><span>Questions</span><span class="stat-icon blue">☷</span></div><div class="stat-value">{{ questions|length }}</div><div class="stat-foot">Active feedback prompts</div></article>
+    </section>
+    <section id="insights" class="charts-grid">
+      <article class="panel chart-panel"><div class="panel-heading"><div><span class="section-kicker">RATING BREAKDOWN</span><h2>How students rated</h2></div><span class="tag">1–5 scale</span></div>
+        {% if 'rating_distribution.png' in charts %}<img class="chart-image" src="{{ url_for('static', filename='generated/rating_distribution.png') }}?v={{ summary.total_responses }}" alt="Bar chart showing number of responses for ratings one to five">{% else %}<div class="empty-chart"><span>▥</span><strong>Waiting for feedback</strong><p>Rating distribution appears when valid responses are available.</p></div>{% endif %}
+        <p class="chart-note">Interpretation: a larger bar means more submitted ratings at that score. Ratings range from 1 (low) to 5 (high).</p>
+      </article>
+      <article class="panel chart-panel"><div class="panel-heading"><div><span class="section-kicker">COURSE COMPARISON</span><h2>Average by course</h2></div><span class="tag">Average / 5</span></div>
+        {% if 'course_averages.png' in charts %}<img class="chart-image" src="{{ url_for('static', filename='generated/course_averages.png') }}?v={{ summary.total_responses }}" alt="Bar chart comparing average rating by course">{% else %}<div class="empty-chart"><span>▥</span><strong>Not enough responses yet</strong><p>Each course needs at least {{ config.MIN_GROUP_SIZE }} ratings to show an average.</p></div>{% endif %}
+        <p class="chart-note">Interpretation: compare only groups that meet the minimum response threshold; higher averages indicate higher ratings.</p>
+      </article>
+      <article class="panel chart-panel full-width"><div class="panel-heading"><div><span class="section-kicker">QUESTION INSIGHTS</span><h2>What is working well?</h2></div><span class="tag">Question average / 5</span></div>
+        {% if 'question_averages.png' in charts %}<img class="chart-image question-chart" src="{{ url_for('static', filename='generated/question_averages.png') }}?v={{ summary.total_responses }}" alt="Horizontal bar chart comparing average rating by question">{% else %}<div class="empty-chart compact"><span>▥</span><strong>Question comparison will appear here</strong><p>Each question needs at least {{ config.MIN_GROUP_SIZE }} ratings.</p></div>{% endif %}
+        <p class="chart-note">Interpretation: use question averages to spot areas that may need attention. These scores describe ratings, not sentiment or proven causes.</p>
+      </article>
+    </section>
+    <section class="panel table-panel"><div class="panel-heading"><div><span class="section-kicker">AGGREGATED RESULTS</span><h2>Course performance</h2></div><span class="tag">Privacy threshold: {{ config.MIN_GROUP_SIZE }}+</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Course</th><th>Responses</th><th>Average rating</th><th>Indicator</th></tr></thead><tbody>
+      {% for row in summary.by_course %}<tr><td><strong>{{ row.course_name or 'Course' }}</strong></td><td>{{ row.responses }}</td><td>{% if row.average_rating is not none %}<strong>{{ '%.2f'|format(row.average_rating) }} / 5</strong>{% else %}<span class="suppressed">Suppressed — small group</span>{% endif %}</td><td>{% if row.average_rating is not none %}<span class="mini-meter"><i style="width:{{ row.average_rating * 20 }}%"></i></span>{% else %}—{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="empty-row">No feedback submitted yet. Use the form below to add the first responses.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+    <section id="give-feedback" class="feedback-layout">
+      <div class="feedback-intro"><span class="section-kicker">YOUR VOICE MATTERS</span><h2>Help improve your courses.</h2><p>Share an honest rating for each prompt. The form does not ask for your name or student ID.</p><div class="privacy-callout"><span>♧</span><div><strong>Your feedback is anonymous</strong><p>Results are shared only as aggregate statistics. Please avoid including personal details in comments.</p></div></div></div>
+      <form class="panel feedback-form" action="{{ url_for('submit_feedback') }}" method="post">
+        <div class="form-title"><h3>Course feedback</h3><span class="required-note">* Required</span></div>
+        <label class="field-label" for="course_id">Select course <span>*</span></label>
+        <select id="course_id" name="course_id" required><option value="">Choose a course...</option>{% for course in courses %}<option value="{{ course.course_id }}">{{ course.course_code }} · {{ course.course_name }}</option>{% endfor %}</select>
+        {% for question in questions %}<fieldset class="rating-field"><legend>{{ loop.index }}. {{ question.question_text }} <span>*</span></legend><div class="rating-options">{% for rating in range(1, 6) %}<label><input type="radio" name="rating" value="{{ rating }}" required><span>{{ rating }}</span></label>{% endfor %}</div><div class="scale-labels"><span>Needs improvement</span><span>Excellent</span></div></fieldset>{% endfor %}
+        <label class="field-label" for="comment">Optional comment <span class="optional">(optional)</span></label><textarea id="comment" name="comment" maxlength="1000" rows="3" placeholder="What could make this course better? Please don't include names or personal details."></textarea>
+        <button class="submit-btn" type="submit">Submit anonymous feedback <span>→</span></button><p class="form-footnote">By submitting, you agree that your rating may be included in aggregate course reports.</p>
+      </form>
+    </section>
+    <footer><span>CampusPulse · Student Feedback Analysis System</span><span>Built with Flask · MySQL · Pandas · NumPy · Matplotlib</span></footer>
+  </main>
+</body></html>

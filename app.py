@@ -71,13 +71,15 @@ def create_app(test_config=None):
     def submit_feedback():
         try:
             course_id = request.form.get("course_id", type=int)
-            ratings = request.form.getlist("rating")
-            if not course_id or not ratings:
+            if not course_id:
                 raise ValueError("Choose a course and rate every question.")
             questions = fetch_all("SELECT question_id FROM feedback_questions WHERE is_active=1 ORDER BY display_order, question_id")
-            if len(questions) != len(ratings):
-                raise ValueError("Please rate every question and submit again.")
-            answers = [{"question_id": q["question_id"], "rating": rating} for q, rating in zip(questions, ratings)]
+            answers = []
+            for question in questions:
+                value = request.form.get("rating_" + str(question["question_id"]))
+                if value is None:
+                    raise ValueError("Please rate every question and submit again.")
+                answers.append({"question_id": question["question_id"], "rating": value})
             insert_answers(course_id, answers, request.form.get("comment", "").strip())
             flash("Thank you — your anonymous feedback has been recorded.", "success")
         except (ValueError, TypeError, KeyError) as exc:
